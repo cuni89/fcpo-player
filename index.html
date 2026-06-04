@@ -2,18 +2,15 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <title>Pemain Pembelajaran Estel - Sesi Penuh Komplit</title>
+    <title>Pemain Pembelajaran Estel - Auto-Scroll Berdesup</title>
     <style>
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; height: 100vh; background: #0f051d; color: #fff; box-sizing: border-box; }
         
         .wrapper { width: 100%; max-width: 1600px; margin: 0 auto; padding: 20px; display: flex; gap: 20px; box-sizing: border-box; height: 100vh; }
         
-        /* Kiri: iFrame Video & Chapters */
+        /* Kiri: Video & Chapters */
         .player-container { flex: 2.3; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; background: #000; padding: 15px; border-radius: 8px; overflow-y: auto; height: 100%; box-sizing: border-box; }
-        
-        /* Bingkai khas untuk stream video Google Drive bypass scan virus */
-        .video-frame-container { width: 100%; height: 68vh; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.8); background: #000; min-height: 380px; }
-        iframe { width: 100%; height: 100%; border: none; }
+        video { width: 100%; max-height: 68vh; border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); display: block; background: #000; }
         
         /* Panel Kawalan Status */
         .controls { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; background: #1f1133; padding: 12px; border-radius: 6px; border: 1px solid #7c3aed; width: 100%; box-sizing: border-box; }
@@ -52,15 +49,13 @@
     <div class="player-container">
         <div class="controls">
             <label class="autoscroll-toggle">
-                <input type="checkbox" id="autoScrollCheck" checked> Sistem Penjejakan Interaktif Aktif
+                <input type="checkbox" id="autoScrollCheck" checked> Sistem Auto-Scroll Penjejakan Aktif
             </label>
-            <div class="status-badge">ONLINE PREVIEW MODE</div>
+            <div class="status-badge">DROPBOX REAL-TIME MODE</div>
         </div>
         
-        <!-- FIX: Menggunakan iFrame Preview Pasukan Drive untuk memintas block virus -->
-        <div class="video-frame-container">
-            <iframe id="driveFrame" src="https://drive.google.com/file/d/14TM4gHhIJm78HB-WMY1HPndcUd8v9Dx5/preview" allow="autoplay"></iframe>
-        </div>
+        <!-- Pemain video HTML5 native menggunakan link raw Dropbox -->
+        <video id="mainVideo" controls crossorigin="anonymous"></video>
 
         <div class="chapters-section">
             <h4>Smart Chapters</h4>
@@ -82,19 +77,25 @@
 </div>
 
 <script>
-    // Link Gist milik kau yang sah
+    // Link Gist & Storan Dropbox milik kau (SIAP DISYNC)
+    const URL_VIDEO_STREAM = "https://www.dropbox.com/scl/fi/63efvgoyiuhdggszp9qsr/GMT20260603-131112_Recording_1920x1080.mp4?rlkey=fhtg0o3m4j98tuybciqt9z4ju&st=slkpo9hw&raw=1";
     const URL_TRANSCRIPT_RAW = "https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt";
     const URL_CHAPTERS_RAW = "https://gist.githubusercontent.com/cuni89/c4c56504b71389a8ac97f743386d4b8b/raw/612342a159e2656b48a40998803f08c23dd20894/gistfile1.txt";
 
-    const driveFrame = document.getElementById('driveFrame');
+    const video = document.getElementById('mainVideo');
     const transcriptContainer = document.getElementById('transcriptContainer');
     const chaptersTrack = document.getElementById('chaptersTrack');
     const chapterDescDisplay = document.getElementById('chapterDescDisplay');
+    const autoScrollCheck = document.getElementById('autoScrollCheck');
 
     let transcriptData = [];
     let chaptersData = [];
+    let lastTrackedChapter = null;
 
     window.addEventListener('DOMContentLoaded', () => {
+        // Sambungkan video stream terus dari Dropbox
+        video.src = URL_VIDEO_STREAM;
+
         // Ambil data Bab
         fetch(URL_CHAPTERS_RAW)
             .then(res => res.text())
@@ -114,11 +115,6 @@
         if (parts.length === 3) seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
         else if (parts.length === 2) seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
         return seconds;
-    }
-
-    // Fungsi klik untuk lompat masa video iFrame Drive
-    function seekDriveVideo(seconds) {
-        driveFrame.src = "https://drive.google.com/file/d/14TM4gHhIJm78HB-WMY1HPndcUd8v9Dx5/preview?start=" + Math.floor(seconds) + "&autoplay=1";
     }
 
     function parseChapters(text) {
@@ -146,10 +142,9 @@
             div.className = 'chapter-card';
             div.innerHTML = `<div class="card-time">From ${chap.timestamp}</div><div class="card-title">${chap.title}</div>`;
             div.addEventListener('click', () => {
-                seekDriveVideo(chap.start);
+                video.currentTime = chap.start;
+                video.play();
                 displayChapterDesc(chap);
-                document.querySelectorAll('.chapter-card').forEach(c => c.classList.remove('active'));
-                div.classList.add('active');
             });
             chap.element = div;
             chaptersTrack.appendChild(div);
@@ -178,6 +173,7 @@
             if (timeLine) {
                 const timeParts = timeLine.split('-->');
                 const startSec = timeToSeconds(timeParts[0]);
+                const endSec = timeToSeconds(timeParts[1]);
                 const textContent = textLines.join(' ').trim();
                 const displayTime = timeParts[0].split('.')[0].trim();
 
@@ -186,16 +182,55 @@
                     div.className = 'transcript-line';
                     div.innerHTML = `<span class="timestamp">[${displayTime}]</span> <span>${textContent}</span>`;
                     div.addEventListener('click', () => {
-                        seekDriveVideo(startSec);
-                        document.querySelectorAll('.transcript-line').forEach(l => l.classList.remove('active'));
-                        div.classList.add('active');
+                        video.currentTime = startSec;
+                        video.play();
                     });
                     transcriptContainer.appendChild(div);
-                    transcriptData.push({ start: startSec, element: div });
+                    transcriptData.push({ start: startSec, end: endSec, element: div });
                 }
             }
         });
     }
+
+    // PENGGERAK UTAMA AUTO-SCROLL (AKTIF SEPENUHNYA DENGAN STREAM DROPBOX)
+    video.addEventListener('timeupdate', () => {
+        const currentTime = video.currentTime;
+        
+        // 1. Skrol & Highlight Transkrip Kanan
+        let activeLine = null;
+        transcriptData.forEach(item => {
+            if (currentTime >= item.start && currentTime <= item.end) {
+                item.element.classList.add('active');
+                activeLine = item.element;
+            } else { item.element.classList.remove('active'); }
+        });
+        if (activeLine && autoScrollCheck.checked) {
+            activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // 2. Skrol & Highlight Bab Bawah Video
+        let activeChapter = null;
+        for (let i = 0; i < chaptersData.length; i++) {
+            const currentChap = chaptersData[i];
+            const nextChap = chaptersData[i + 1];
+            if (currentTime >= currentChap.start && (!nextChap || currentTime < nextChap.start)) {
+                currentChap.element.classList.add('active');
+                activeChapter = currentChap;
+            } else { currentChap.element.classList.remove('active'); }
+        }
+        if (activeChapter) {
+            if (lastTrackedChapter !== activeChapter) {
+                displayChapterDesc(activeChapter);
+                lastTrackedChapter = activeChapter;
+            }
+            if (autoScrollCheck.checked) {
+                const track = chaptersTrack;
+                const card = activeChapter.element;
+                const targetScroll = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
+                track.scrollTo({ left: targetScroll, behavior: 'smooth' });
+            }
+        }
+    });
 </script>
 </body>
 </html>
