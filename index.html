@@ -51,11 +51,13 @@
             <label class="autoscroll-toggle">
                 <input type="checkbox" id="autoScrollCheck" checked> Sistem Auto-Scroll Penjejakan Aktif
             </label>
-            <div class="status-badge">DROPBOX REAL-TIME MODE</div>
+            <div class="status-badge">DROPBOX ONLINE STREAM</div>
         </div>
         
-        <!-- Pemain video HTML5 native menggunakan link raw Dropbox -->
-        <video id="mainVideo" controls crossorigin="anonymous"></video>
+        <!-- FIX: Menambah preload="auto" untuk memaksa pelayar menyimpan data jangka masa bagi mengelakkan ralat reset -->
+        <video id="mainVideo" controls crossorigin="anonymous" preload="auto">
+            <track id="vttTrack" src="https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt" kind="subtitles" srclang="ms" label="Melayu" default>
+        </video>
 
         <div class="chapters-section">
             <h4>Smart Chapters</h4>
@@ -77,7 +79,6 @@
 </div>
 
 <script>
-    // Link Gist & Storan Dropbox milik kau (SIAP DISYNC)
     const URL_VIDEO_STREAM = "https://www.dropbox.com/scl/fi/63efvgoyiuhdggszp9qsr/GMT20260603-131112_Recording_1920x1080.mp4?rlkey=fhtg0o3m4j98tuybciqt9z4ju&st=slkpo9hw&raw=1";
     const URL_TRANSCRIPT_RAW = "https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt";
     const URL_CHAPTERS_RAW = "https://gist.githubusercontent.com/cuni89/c4c56504b71389a8ac97f743386d4b8b/raw/612342a159e2656b48a40998803f08c23dd20894/gistfile1.txt";
@@ -93,16 +94,13 @@
     let lastTrackedChapter = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Sambungkan video stream terus dari Dropbox
         video.src = URL_VIDEO_STREAM;
 
-        // Ambil data Bab
         fetch(URL_CHAPTERS_RAW)
             .then(res => res.text())
             .then(text => parseChapters(text))
             .catch(() => { chaptersTrack.innerHTML = '<div style="color:#ef4444" class="loading-text">Gagal memuatkan bab.</div>'; });
 
-        // Ambil data Transkrip
         fetch(URL_TRANSCRIPT_RAW)
             .then(res => res.text())
             .then(text => parseVTT(text))
@@ -115,6 +113,20 @@
         if (parts.length === 3) seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
         else if (parts.length === 2) seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
         return seconds;
+    }
+
+    // FIX MUKTAMAD: Memaksa video menanti data buffer sedia sebelum menukar masa bagi mengelakkan isu putus sambungan Dropbox
+    function safeSeekVideo(seconds) {
+        if (video.readyState >= 2) {
+            video.currentTime = seconds;
+            video.play().catch(() => {});
+        } else {
+            video.addEventListener('canplay', function onCanPlay() {
+                video.currentTime = seconds;
+                video.play().catch(() => {});
+                video.removeEventListener('canplay', onCanPlay);
+            });
+        }
     }
 
     function parseChapters(text) {
@@ -142,8 +154,7 @@
             div.className = 'chapter-card';
             div.innerHTML = `<div class="card-time">From ${chap.timestamp}</div><div class="card-title">${chap.title}</div>`;
             div.addEventListener('click', () => {
-                video.currentTime = chap.start;
-                video.play();
+                safeSeekVideo(chap.start);
                 displayChapterDesc(chap);
             });
             chap.element = div;
@@ -182,8 +193,7 @@
                     div.className = 'transcript-line';
                     div.innerHTML = `<span class="timestamp">[${displayTime}]</span> <span>${textContent}</span>`;
                     div.addEventListener('click', () => {
-                        video.currentTime = startSec;
-                        video.play();
+                        safeSeekVideo(startSec);
                     });
                     transcriptContainer.appendChild(div);
                     transcriptData.push({ start: startSec, end: endSec, element: div });
@@ -192,11 +202,11 @@
         });
     }
 
-    // PENGGERAK UTAMA AUTO-SCROLL (AKTIF SEPENUHNYA DENGAN STREAM DROPBOX)
+    // FIX MUKTAMAD: Menggunakan pembaca penjejak masa berbilang hala untuk memastikan auto-scroll bergerak lancar
     video.addEventListener('timeupdate', () => {
         const currentTime = video.currentTime;
-        
-        // 1. Skrol & Highlight Transkrip Kanan
+        if (currentTime === 0) return; // Mengelakkan ralat auto-scroll terkejut semasa video memuat semula data awal
+
         let activeLine = null;
         transcriptData.forEach(item => {
             if (currentTime >= item.start && currentTime <= item.end) {
@@ -208,7 +218,6 @@
             activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        // 2. Skrol & Highlight Bab Bawah Video
         let activeChapter = null;
         for (let i = 0; i < chaptersData.length; i++) {
             const currentChap = chaptersData[i];
