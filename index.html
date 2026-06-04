@@ -2,7 +2,7 @@
 <html lang="ms">
 <head>
     <meta charset="UTF-8">
-    <title>Pemain Pembelajaran Estel - Auto-Scroll Berdesup</title>
+    <title>Pemain Pembelajaran Estel - Auto-Scroll YouTube Edition</title>
     <style>
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; height: 100vh; background: #0f051d; color: #fff; box-sizing: border-box; }
         
@@ -10,7 +10,9 @@
         
         /* Kiri: Video & Chapters */
         .player-container { flex: 2.3; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; background: #000; padding: 15px; border-radius: 8px; overflow-y: auto; height: 100%; box-sizing: border-box; }
-        video { width: 100%; max-height: 68vh; border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); display: block; background: #000; }
+        
+        .video-frame-container { width: 100%; height: 68vh; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.8); background: #000; min-height: 380px; }
+        #ytPlayer { width: 100%; height: 100%; border: none; }
         
         /* Panel Kawalan Status */
         .controls { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; background: #1f1133; padding: 12px; border-radius: 6px; border: 1px solid #7c3aed; width: 100%; box-sizing: border-box; }
@@ -49,15 +51,15 @@
     <div class="player-container">
         <div class="controls">
             <label class="autoscroll-toggle">
-                <input type="checkbox" id="autoScrollCheck" checked> Sistem Auto-Scroll Penjejakan Aktif
+                <input type="checkbox" id="autoScrollCheck" checked> Sistem Auto-Scroll YouTube Aktif
             </label>
-            <div class="status-badge">DROPBOX ONLINE STREAM</div>
+            <div class="status-badge" style="background: #ef4444;">YOUTUBE API LIVE</div>
         </div>
         
-        <!-- FIX: Menambah preload="auto" untuk memaksa pelayar menyimpan data jangka masa bagi mengelakkan ralat reset -->
-        <video id="mainVideo" controls crossorigin="anonymous" preload="auto">
-            <track id="vttTrack" src="https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt" kind="subtitles" srclang="ms" label="Melayu" default>
-        </video>
+        <!-- Wadah rasmi iFrame pemain YouTube API -->
+        <div class="video-frame-container">
+            <div id="ytPlayer"></div>
+        </div>
 
         <div class="chapters-section">
             <h4>Smart Chapters</h4>
@@ -78,34 +80,106 @@
     </div>
 </div>
 
+<!-- Muatkan pustaka pengawal rasmi iFrame Player YouTube API -->
+<script src="https://www.youtube.com/iframe_api"></script>
+
 <script>
-    const URL_VIDEO_STREAM = "https://www.dropbox.com/scl/fi/63efvgoyiuhdggszp9qsr/GMT20260603-131112_Recording_1920x1080.mp4?rlkey=fhtg0o3m4j98tuybciqt9z4ju&st=slkpo9hw&raw=1";
+    // ID Video yang sudah dikunci mengikut pautan YouTube anda
+    const YOUTUBE_VIDEO_ID = "3qEll3v2oPU";
+
     const URL_TRANSCRIPT_RAW = "https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt";
     const URL_CHAPTERS_RAW = "https://gist.githubusercontent.com/cuni89/c4c56504b71389a8ac97f743386d4b8b/raw/612342a159e2656b48a40998803f08c23dd20894/gistfile1.txt";
 
-    const video = document.getElementById('mainVideo');
     const transcriptContainer = document.getElementById('transcriptContainer');
     const chaptersTrack = document.getElementById('chaptersTrack');
     const chapterDescDisplay = document.getElementById('chapterDescDisplay');
     const autoScrollCheck = document.getElementById('autoScrollCheck');
 
+    let player;
     let transcriptData = [];
     let chaptersData = [];
     let lastTrackedChapter = null;
+    let updateInterval;
 
-    window.addEventListener('DOMContentLoaded', () => {
-        video.src = URL_VIDEO_STREAM;
+    // Fungsi automatik yang dicetuskan oleh pustaka YouTube API untuk membina objek player
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('ytPlayer', {
+            videoId: YOUTUBE_VIDEO_ID,
+            playerVars: {
+                'autoplay': 0,
+                'controls': 1,
+                'rel': 0,
+                'showinfo': 0
+            },
+            events: {
+                'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
 
+    function onPlayerReady(event) {
+        // Ambil data Bab
         fetch(URL_CHAPTERS_RAW)
             .then(res => res.text())
             .then(text => parseChapters(text))
             .catch(() => { chaptersTrack.innerHTML = '<div style="color:#ef4444" class="loading-text">Gagal memuatkan bab.</div>'; });
 
+        // Ambil data Transkrip
         fetch(URL_TRANSCRIPT_RAW)
             .then(res => res.text())
             .then(text => parseVTT(text))
             .catch(() => { transcriptContainer.innerHTML = '<div style="color:#ef4444" class="loading-text">Gagal memuatkan transkrip.</div>'; });
-    });
+    }
+
+    // Mengawal pemasa tracker mengikut status aktif video YouTube
+    function onPlayerStateChange(event) {
+        if (event.data == YT.PlayerState.PLAYING) {
+            updateInterval = setInterval(checkVideoTime, 250); // Semak masa setiap suku saat untuk kelancaran
+        } else {
+            clearInterval(updateInterval);
+        }
+    }
+
+    function checkVideoTime() {
+        if (!player || typeof player.getCurrentTime !== 'function') return;
+        const currentTime = player.getCurrentTime();
+
+        // 1. Pergerakan Auto-Scroll & Highlight Transkrip
+        let activeLine = null;
+        transcriptData.forEach(item => {
+            if (currentTime >= item.start && currentTime <= item.end) {
+                item.element.classList.add('active');
+                activeLine = item.element;
+            } else { item.element.classList.remove('active'); }
+        });
+        if (activeLine && autoScrollCheck.checked) {
+            activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // 2. Pergerakan Auto-Scroll & Highlight Bab
+        let activeChapter = null;
+        for (let i = 0; i < chaptersData.length; i++) {
+            const currentChap = chaptersData[i];
+            const nextChap = chaptersData[i + 1];
+            if (currentTime >= currentChap.start && (!nextChap || currentTime < nextChap.start)) {
+                currentChap.element.classList.add('active');
+                activeChapter = currentChap;
+            } else { currentChap.element.classList.remove('active'); }
+        }
+        if (activeChapter) {
+            if (lastTrackedChapter !== activeChapter) {
+                displayChapterDesc(activeChapter);
+                lastTrackedChapter = activeChapter;
+            }
+            if (autoScrollCheck.checked) {
+                const track = chaptersTrack;
+                const card = activeChapter.element;
+                const targetScroll = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
+                track.scrollTo({ left: targetScroll, behavior: 'smooth' });
+            }
+        }
+    }
 
     function timeToSeconds(timeStr) {
         const parts = timeStr.trim().split(':');
@@ -113,20 +187,6 @@
         if (parts.length === 3) seconds = parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
         else if (parts.length === 2) seconds = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
         return seconds;
-    }
-
-    // FIX MUKTAMAD: Memaksa video menanti data buffer sedia sebelum menukar masa bagi mengelakkan isu putus sambungan Dropbox
-    function safeSeekVideo(seconds) {
-        if (video.readyState >= 2) {
-            video.currentTime = seconds;
-            video.play().catch(() => {});
-        } else {
-            video.addEventListener('canplay', function onCanPlay() {
-                video.currentTime = seconds;
-                video.play().catch(() => {});
-                video.removeEventListener('canplay', onCanPlay);
-            });
-        }
     }
 
     function parseChapters(text) {
@@ -154,7 +214,7 @@
             div.className = 'chapter-card';
             div.innerHTML = `<div class="card-time">From ${chap.timestamp}</div><div class="card-title">${chap.title}</div>`;
             div.addEventListener('click', () => {
-                safeSeekVideo(chap.start);
+                player.seekTo(chap.start, true);
                 displayChapterDesc(chap);
             });
             chap.element = div;
@@ -193,7 +253,7 @@
                     div.className = 'transcript-line';
                     div.innerHTML = `<span class="timestamp">[${displayTime}]</span> <span>${textContent}</span>`;
                     div.addEventListener('click', () => {
-                        safeSeekVideo(startSec);
+                        player.seekTo(startSec, true);
                     });
                     transcriptContainer.appendChild(div);
                     transcriptData.push({ start: startSec, end: endSec, element: div });
@@ -201,45 +261,6 @@
             }
         });
     }
-
-    // FIX MUKTAMAD: Menggunakan pembaca penjejak masa berbilang hala untuk memastikan auto-scroll bergerak lancar
-    video.addEventListener('timeupdate', () => {
-        const currentTime = video.currentTime;
-        if (currentTime === 0) return; // Mengelakkan ralat auto-scroll terkejut semasa video memuat semula data awal
-
-        let activeLine = null;
-        transcriptData.forEach(item => {
-            if (currentTime >= item.start && currentTime <= item.end) {
-                item.element.classList.add('active');
-                activeLine = item.element;
-            } else { item.element.classList.remove('active'); }
-        });
-        if (activeLine && autoScrollCheck.checked) {
-            activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        let activeChapter = null;
-        for (let i = 0; i < chaptersData.length; i++) {
-            const currentChap = chaptersData[i];
-            const nextChap = chaptersData[i + 1];
-            if (currentTime >= currentChap.start && (!nextChap || currentTime < nextChap.start)) {
-                currentChap.element.classList.add('active');
-                activeChapter = currentChap;
-            } else { currentChap.element.classList.remove('active'); }
-        }
-        if (activeChapter) {
-            if (lastTrackedChapter !== activeChapter) {
-                displayChapterDesc(activeChapter);
-                lastTrackedChapter = activeChapter;
-            }
-            if (autoScrollCheck.checked) {
-                const track = chaptersTrack;
-                const card = activeChapter.element;
-                const targetScroll = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
-                track.scrollTo({ left: targetScroll, behavior: 'smooth' });
-            }
-        }
-    });
 </script>
 </body>
 </html>
