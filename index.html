@@ -8,16 +8,19 @@
         
         .wrapper { width: 100%; max-width: 1600px; margin: 0 auto; padding: 20px; display: flex; gap: 20px; box-sizing: border-box; height: 100vh; }
         
-        /* Bahagian kiri: Video dan Chapters */
+        /* Kiri: iFrame Video & Chapters */
         .player-container { flex: 2.3; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; background: #000; padding: 15px; border-radius: 8px; overflow-y: auto; height: 100%; box-sizing: border-box; }
-        video { width: 100%; max-height: 68vh; border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.8); display: block; background: #000; }
         
-        /* Panel Kawalan Ringkas */
+        /* Bingkai khas untuk stream video Google Drive bypass scan virus */
+        .video-frame-container { width: 100%; height: 68vh; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.8); background: #000; min-height: 380px; }
+        iframe { width: 100%; height: 100%; border: none; }
+        
+        /* Panel Kawalan Status */
         .controls { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; background: #1f1133; padding: 12px; border-radius: 6px; border: 1px solid #7c3aed; width: 100%; box-sizing: border-box; }
         .autoscroll-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; color: #f59e0b; cursor: pointer; }
         .status-badge { font-size: 11px; background: #16a34a; padding: 2px 8px; border-radius: 12px; font-weight: bold; }
 
-        /* Bahagian kanan: Transkrip Interaktif Menegak */
+        /* Kanan: Transkrip Interaktif */
         .sidebar { flex: 1; display: flex; flex-direction: column; border-left: 1px solid #2e0854; background: #150a21; padding: 15px; overflow-y: auto; height: 100%; box-sizing: border-box; border-radius: 8px; }
         h3 { margin-top: 0; color: #f59e0b; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; border-bottom: 1px solid #7c3aed; padding-bottom: 5px; position: sticky; top: 0; background: #150a21; z-index: 10; }
         .list-viewport { flex: 1; overflow-y: auto; width: 100%; }
@@ -27,7 +30,7 @@
         .transcript-line.active { background: rgba(124, 58, 237, 0.35); color: #ffffff; font-weight: bold; border-left: 3px solid #f59e0b; border-radius: 0 4px 4px 0; }
         .timestamp { color: #38bdf8; font-weight: bold; margin-right: 8px; font-size: 11px; font-family: monospace; }
         
-        /* KARUSEL SMART CHAPTERS (DI BAWAH VIDEO) */
+        /* KARUSEL SMART CHAPTERS */
         .chapters-section { width: 100%; margin-top: 15px; border-top: 1px solid #2e0854; padding-top: 15px; box-sizing: border-box; }
         .chapters-section h4 { margin: 0 0 10px 0; color: #f59e0b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
         .chapters-track { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; width: 100%; scroll-behavior: smooth; }
@@ -47,30 +50,29 @@
 
 <div class="wrapper">
     <div class="player-container">
-        <!-- Panel Kawalan Status Pelayan -->
         <div class="controls">
             <label class="autoscroll-toggle">
-                <input type="checkbox" id="autoScrollCheck" checked> Sistem Auto-Scroll Pintar Aktif
+                <input type="checkbox" id="autoScrollCheck" checked> Sistem Penjejakan Interaktif Aktif
             </label>
-            <div class="status-badge">ONLINE STREAMING</div>
+            <div class="status-badge">ONLINE PREVIEW MODE</div>
         </div>
         
-        <!-- Pemain Video HTML5 Direktori Google Drive -->
-        <video id="mainVideo" controls crossorigin="anonymous"></video>
+        <!-- FIX: Menggunakan iFrame Preview Pasukan Drive untuk memintas block virus -->
+        <div class="video-frame-container">
+            <iframe id="driveFrame" src="https://drive.google.com/file/d/14TM4gHhIJm78HB-WMY1HPndcUd8v9Dx5/preview" allow="autoplay"></iframe>
+        </div>
 
-        <!-- Bahagian Karusel Smart Chapters Melintang -->
         <div class="chapters-section">
             <h4>Smart Chapters</h4>
             <div class="chapters-track" id="chaptersTrack">
                 <div class="loading-text">Memuatkan data bab kuliah...</div>
             </div>
             <div class="chapter-desc-display" id="chapterDescDisplay">
-                <span style="color: #64748b; font-style: italic;">Penerangan ringkasan topik bab akan dikemas kini di sini mengikut masa video...</span>
+                <span style="color: #64748b; font-style: italic;">Penerangan ringkasan topik bab akan dikemas kini di sini...</span>
             </div>
         </div>
     </div>
 
-    <!-- Panel Sisi Kanan: Lajur Teks Transkrip Perbualan Suara -->
     <div class="sidebar">
         <h3>Transkrip Interaktif</h3>
         <div id="transcriptContainer" class="list-viewport">
@@ -80,32 +82,26 @@
 </div>
 
 <script>
-    // PAUTAN INTEGRASI DATA DAN STORAN MUKTAMAD (SIAP DISINKRONI)
-    const URL_VIDEO_GDRIVE = "https://drive.google.com/uc?export=download&id=14TM4gHhIJm78HB-WMY1HPndcUd8v9Dx5";
+    // Link Gist milik kau yang sah
     const URL_TRANSCRIPT_RAW = "https://gist.githubusercontent.com/cuni89/e49ba7d0955ab7aea6a80907ab05865c/raw/c5e586d2d7525d55c3514f381cea523282492aca/gistfile1.txt";
     const URL_CHAPTERS_RAW = "https://gist.githubusercontent.com/cuni89/c4c56504b71389a8ac97f743386d4b8b/raw/612342a159e2656b48a40998803f08c23dd20894/gistfile1.txt";
 
-    const video = document.getElementById('mainVideo');
+    const driveFrame = document.getElementById('driveFrame');
     const transcriptContainer = document.getElementById('transcriptContainer');
     const chaptersTrack = document.getElementById('chaptersTrack');
     const chapterDescDisplay = document.getElementById('chapterDescDisplay');
-    const autoScrollCheck = document.getElementById('autoScrollCheck');
 
     let transcriptData = [];
     let chaptersData = [];
-    let lastTrackedChapter = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-        // Hubungkan fail streaming video langsung dari Google Drive
-        video.src = URL_VIDEO_GDRIVE;
-
-        // Ambil data Bab dari GitHub Gist secara asinkronus
+        // Ambil data Bab
         fetch(URL_CHAPTERS_RAW)
             .then(res => res.text())
             .then(text => parseChapters(text))
             .catch(() => { chaptersTrack.innerHTML = '<div style="color:#ef4444" class="loading-text">Gagal memuatkan bab.</div>'; });
 
-        // Ambil data Transkrip dari GitHub Gist secara asinkronus
+        // Ambil data Transkrip
         fetch(URL_TRANSCRIPT_RAW)
             .then(res => res.text())
             .then(text => parseVTT(text))
@@ -120,10 +116,14 @@
         return seconds;
     }
 
+    // Fungsi klik untuk lompat masa video iFrame Drive
+    function seekDriveVideo(seconds) {
+        driveFrame.src = "https://drive.google.com/file/d/14TM4gHhIJm78HB-WMY1HPndcUd8v9Dx5/preview?start=" + Math.floor(seconds) + "&autoplay=1";
+    }
+
     function parseChapters(text) {
         chaptersTrack.innerHTML = '';
         chaptersData = [];
-        
         const lines = text.split('\n');
         let currentChapter = null;
         
@@ -146,9 +146,10 @@
             div.className = 'chapter-card';
             div.innerHTML = `<div class="card-time">From ${chap.timestamp}</div><div class="card-title">${chap.title}</div>`;
             div.addEventListener('click', () => {
-                video.currentTime = chap.start;
-                video.play();
+                seekDriveVideo(chap.start);
                 displayChapterDesc(chap);
+                document.querySelectorAll('.chapter-card').forEach(c => c.classList.remove('active'));
+                div.classList.add('active');
             });
             chap.element = div;
             chaptersTrack.appendChild(div);
@@ -157,7 +158,7 @@
 
     function displayChapterDesc(chap) {
         if (chap) {
-            const bodyText = chap.summaryLines.join('<br>') || '<span style="color: #64748b; font-style: italic;">(Tiada perenggan ringkasan dimasukkan)</span>';
+            const bodyText = chap.summaryLines.join('<br>') || '<span style="color: #64748b; font-style: italic;">(Tiada perenggan ringkasan)</span>';
             chapterDescDisplay.innerHTML = `<div style="font-weight:bold; color:#f59e0b; margin-bottom:4px; font-size:13px; text-transform:uppercase;">${chap.title}</div><div style="color:#cbd5e1;">${bodyText}</div>`;
         }
     }
@@ -177,7 +178,6 @@
             if (timeLine) {
                 const timeParts = timeLine.split('-->');
                 const startSec = timeToSeconds(timeParts[0]);
-                const endSec = timeToSeconds(timeParts[1]);
                 const textContent = textLines.join(' ').trim();
                 const displayTime = timeParts[0].split('.')[0].trim();
 
@@ -186,55 +186,16 @@
                     div.className = 'transcript-line';
                     div.innerHTML = `<span class="timestamp">[${displayTime}]</span> <span>${textContent}</span>`;
                     div.addEventListener('click', () => {
-                        video.currentTime = startSec;
-                        video.play();
+                        seekDriveVideo(startSec);
+                        document.querySelectorAll('.transcript-line').forEach(l => l.classList.remove('active'));
+                        div.classList.add('active');
                     });
                     transcriptContainer.appendChild(div);
-                    transcriptData.push({ start: startSec, end: endSec, element: div });
+                    transcriptData.push({ start: startSec, element: div });
                 }
             }
         });
     }
-
-    // SISTEM AUTO-SCROLL SEBENAR (DAPAT MEMBACA MASA VIDEO KARENA HOS ONLINE DI VERCEL)
-    video.addEventListener('timeupdate', () => {
-        const currentTime = video.currentTime;
-        
-        // 1. Logik Auto-Scroll & Highlight Transkrip Sisi Kanan
-        let activeLine = null;
-        transcriptData.forEach(item => {
-            if (currentTime >= item.start && currentTime <= item.end) {
-                item.element.classList.add('active');
-                activeLine = item.element;
-            } else { item.element.classList.remove('active'); }
-        });
-        if (activeLine && autoScrollCheck.checked) {
-            activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        // 2. Logik Auto-Scroll & Highlight Bab Kandungan Melintang
-        let activeChapter = null;
-        for (let i = 0; i < chaptersData.length; i++) {
-            const currentChap = chaptersData[i];
-            const nextChap = chaptersData[i + 1];
-            if (currentTime >= currentChap.start && (!nextChap || currentTime < nextChap.start)) {
-                currentChap.element.classList.add('active');
-                activeChapter = currentChap;
-            } else { currentChap.element.classList.remove('active'); }
-        }
-        if (activeChapter) {
-            if (lastTrackedChapter !== activeChapter) {
-                displayChapterDesc(activeChapter);
-                lastTrackedChapter = activeChapter;
-            }
-            if (autoScrollCheck.checked) {
-                const track = chaptersTrack;
-                const card = activeChapter.element;
-                const targetScroll = card.offsetLeft - (track.offsetWidth / 2) + (card.offsetWidth / 2);
-                track.scrollTo({ left: targetScroll, behavior: 'smooth' });
-            }
-        }
-    });
 </script>
 </body>
 </html>
